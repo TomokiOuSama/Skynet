@@ -63,3 +63,8 @@ name = "Altay Capital"
 twitter = "AltayCapital"
 substack = "altaycapital"
 kol_type = "stock_picker"
+
+[[seeds]]
+name = "Temple 8 Research"
+twitter = "Temple8Research"
+kol_type = "stock_picker"
