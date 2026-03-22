@@ -99,3 +99,45 @@ kol_type = "stock_picker"
 name = "Crux Capital"
 twitter = "crux_capital_"
 kol_type = "stock_picker"
+
+# --- AXTI Case Study Seeds ---
+# Early $AXTI / AXT Inc propagation chain (InP substrate bottleneck thesis)
+# Ordered roughly by earliest known mention
+
+[[seeds]]
+name = "TheValueist"
+twitter = "TheValueist"
+kol_type = "stock_picker"
+
+[[seeds]]
+name = "Zephyr"
+twitter = "zephyr_z9"
+kol_type = "stock_picker"
+
+[[seeds]]
+name = "FinGenAi"
+twitter = "ackmeni"
+kol_type = "stock_picker"
+
+[[seeds]]
+name = "Oliver MMMT Wealth"
+twitter = "maboroshitez"
+substack = "mmmtwealth"
+kol_type = "stock_picker"
+
+[[seeds]]
+name = "Colin Tedards"
+twitter = "InvestorVideos"
+substack = "theinvestorchannel"
+kol_type = "stock_picker"
+
+[[seeds]]
+name = "Yiannis Zourmpanos"
+twitter = "yianisz"
+substack = "yianisz"
+kol_type = "stock_picker"
+
+[[seeds]]
+name = "Dan Nystedt"
+twitter = "dnystedt"
+kol_type = "stock_picker"
