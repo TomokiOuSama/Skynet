@@ -17,10 +17,10 @@ Every KOL gets a composite score based on four dimensions:
 
 | Dimension | Weight | What It Measures |
 |-----------|--------|-----------------|
-| **Alpha** | 35% | Median alpha vs sector benchmark (SOXX, IGV, etc.) |
-| **Originality** | 30% | How often they're first to call a ticker |
-| **Social Authority** | 25% | Network position via PageRank on the social graph |
-| **Win Rate** | 10% | % of calls directionally correct |
+| **Originality** | 35% | How often they're first to call a ticker |
+| **Alpha** | 30% | Median alpha vs sector benchmark (SOXX, IGV, etc.) |
+| **Win Rate** | 25% | % of calls directionally correct |
+| **Social Authority** | 10% | Network position via PageRank on the social graph |
 
 All scores use time decay — recent performance matters more. Returns measured at 7/30/60/90/180/360 day windows.
 

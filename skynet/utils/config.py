@@ -22,10 +22,10 @@ class StockConfig(BaseModel):
 
 
 class ScoringConfig(BaseModel):
-    originality_weight: float = 0.30
-    alpha_weight: float = 0.35
-    accuracy_weight: float = 0.10
-    social_weight: float = 0.25
+    originality_weight: float = 0.35
+    alpha_weight: float = 0.30
+    accuracy_weight: float = 0.25
+    social_weight: float = 0.10
     accuracy_window_days: list[int] = [7, 30, 60, 90, 180, 360]
     score_decay_half_life: int = 60
 

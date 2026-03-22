@@ -11,10 +11,10 @@ max_market_cap = 10000
 min_market_cap = 100
 
 [scoring]
-originality_weight = 0.30
-alpha_weight = 0.35
-accuracy_weight = 0.10
-social_weight = 0.25
+originality_weight = 0.35
+alpha_weight = 0.30
+accuracy_weight = 0.25
+social_weight = 0.10
 accuracy_window_days = [7, 30, 60, 90, 180, 360]
 score_decay_half_life = 60
 

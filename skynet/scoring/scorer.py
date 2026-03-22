@@ -9,10 +9,10 @@ Key improvements from Reddit post analysis:
 6. Only scores stock_picker KOLs (macro/sector excluded from stock-picking rankings)
 
 Scoring dimensions:
-  Originality (30%): First-caller frequency with time decay
-  Alpha (35%):       Median alpha vs sector benchmark across time windows
-  Accuracy (10%):    Win rate (directionally correct calls)
-  Social (25%):      PageRank on the KOL social graph
+  Originality (35%): First-caller frequency with time decay
+  Alpha (30%):       Median alpha vs sector benchmark across time windows
+  Win Rate (25%):    Directionally correct calls
+  Social (10%):      PageRank on the KOL social graph
 """
 
 import datetime as dt
@@ -78,10 +78,10 @@ class KOLScorer:
             social = social_scores.get(kol.id, 0.0)
 
             composite = (
-                0.30 * originality
-                + 0.35 * alpha
-                + 0.10 * accuracy
-                + 0.25 * social
+                0.35 * originality
+                + 0.30 * alpha
+                + 0.25 * accuracy
+                + 0.10 * social
             )
 
             # Upsert score record

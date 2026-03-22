@@ -19,7 +19,7 @@ def test_time_decay():
 
 def test_score_weights_sum_to_one():
     """Scoring weights should sum to 1.0."""
-    total = 0.30 + 0.35 + 0.10 + 0.25
+    total = 0.35 + 0.30 + 0.25 + 0.10
     assert abs(total - 1.0) < 0.001
 
 
