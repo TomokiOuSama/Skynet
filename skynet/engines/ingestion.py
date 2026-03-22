@@ -3,7 +3,6 @@
 Platform roles:
   - Twitter:   Short-form signals (tweets with cashtags, sentiment)
   - Substack:  Long-form research articles (high-conviction call extraction via LLM)
-  - Reddit:    Community signals (DD posts, hot takes)
 
 All content feeds into the same KOL identity node for unified scoring.
 

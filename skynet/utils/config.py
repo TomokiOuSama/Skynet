@@ -10,13 +10,6 @@ class TwitterConfig(BaseModel):
     bearer_token: str = ""
 
 
-class RedditConfig(BaseModel):
-    client_id: str = ""
-    client_secret: str = ""
-    user_agent: str = "skynet-kol-tracker/0.1"
-    subreddits: list[str] = ["semiconductors", "stocks"]
-
-
 class SubstackConfig(BaseModel):
     pass  # No API key needed, RSS is public
 
@@ -58,13 +51,11 @@ class SeedKOL(BaseModel):
     name: str
     twitter: str | None = None
     substack: str | None = None
-    reddit: str | None = None
     kol_type: str = "unclassified"
 
 
 class Settings(BaseSettings):
     twitter: TwitterConfig = TwitterConfig()
-    reddit: RedditConfig = RedditConfig()
     substack: SubstackConfig = SubstackConfig()
     stock: StockConfig = StockConfig()
     scoring: ScoringConfig = ScoringConfig()

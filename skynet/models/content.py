@@ -24,7 +24,7 @@ class ContentType(str, enum.Enum):
     QUOTE = "quote"
     REPLY = "reply"
     ARTICLE = "article"  # substack / blog
-    POST = "post"  # reddit
+    POST = "post"
 
 
 class Content(TimestampMixin, Base):

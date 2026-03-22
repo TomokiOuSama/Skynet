@@ -4,12 +4,6 @@
 [twitter]
 bearer_token = ""
 
-[reddit]
-client_id = ""
-client_secret = ""
-user_agent = "skynet-kol-tracker/0.1"
-subreddits = ["semiconductors", "wallstreetbets", "stocks", "smallcapstocks"]
-
 [stock]
 alpha_vantage_key = ""
 focus_sectors = ["semiconductors", "technology"]

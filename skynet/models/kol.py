@@ -1,11 +1,10 @@
 """KOL (Key Opinion Leader) data models.
 
 Core design: A KOL is a platform-agnostic identity node. Each KOL can have
-multiple PlatformAccounts (Twitter, Substack, Reddit). Different platforms
-serve different roles:
+multiple PlatformAccounts (Twitter, Substack). Different platforms serve
+different roles:
   - Twitter:   Social graph exploration (discovery of new KOLs)
   - Substack:  Deep content analysis (stock call extraction, alpha scoring)
-  - Reddit:    Supplementary signal source
 """
 
 import datetime as dt
@@ -19,7 +18,6 @@ from skynet.models.base import Base, TimestampMixin
 
 class Platform(str, enum.Enum):
     TWITTER = "twitter"
-    REDDIT = "reddit"
     SUBSTACK = "substack"
 
 
@@ -41,8 +39,8 @@ class VolumeTier(str, enum.Enum):
 class KOL(TimestampMixin, Base):
     """A tracked Key Opinion Leader — platform-agnostic identity node.
 
-    A single KOL (e.g. SemiAnalysis) may have accounts on Twitter, Substack,
-    and Reddit. All content and scores roll up to this identity.
+    A single KOL (e.g. SemiAnalysis) may have accounts on Twitter and
+    Substack. All content and scores roll up to this identity.
     """
 
     __tablename__ = "kols"
@@ -84,8 +82,7 @@ class KOL(TimestampMixin, Base):
 class PlatformAccount(TimestampMixin, Base):
     """A KOL's account on a specific platform.
 
-    Multiple PlatformAccounts can point to the same KOL, enabling
-    cross-platform identity resolution:
+    Multiple PlatformAccounts can point to the same KOL:
       - Twitter @SemiAnalysis  →  KOL "SemiAnalysis"
       - Substack semianalysis  →  KOL "SemiAnalysis"
     """

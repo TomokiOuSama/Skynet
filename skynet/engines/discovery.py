@@ -5,7 +5,6 @@ Multi-platform discovery strategy:
     graphs from tracked KOLs' Twitter accounts to find new people.
   - Substack is a CONTENT source only. It has no social graph to crawl,
     but we ingest articles for deep analysis and stock call extraction.
-  - Reddit is a SUPPLEMENTARY source for both discovery and content.
 
 When a new KOL is discovered via Twitter, we also try to find their
 Substack (via bio links) and link it to the same identity node.
@@ -212,13 +211,13 @@ class DiscoveryEngine:
         name: str,
         twitter_username: str | None = None,
         substack_slug: str | None = None,
-        reddit_username: str | None = None,
         kol_type: KOLType = KOLType.UNCLASSIFIED,
     ) -> KOL:
         """Seed a KOL with one or more platform accounts.
 
-        Example:
-            seed_kol(
+        Example::
+
+            await discovery.seed_kol(
                 name="SemiAnalysis",
                 twitter_username="SemiAnalysis",
                 substack_slug="semianalysis",
@@ -252,17 +251,6 @@ class DiscoveryEngine:
                 platform_user_id=substack_slug,
                 username=substack_slug,
                 profile_url=f"https://{substack_slug}.substack.com",
-                is_discovery_source=False,
-                is_content_source=True,
-            )
-            self.session.add(account)
-
-        if reddit_username:
-            account = PlatformAccount(
-                kol_id=kol.id,
-                platform=Platform.REDDIT,
-                platform_user_id=reddit_username,
-                username=reddit_username,
                 is_discovery_source=False,
                 is_content_source=True,
             )
