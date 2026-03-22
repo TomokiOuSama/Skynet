@@ -68,3 +68,34 @@ kol_type = "stock_picker"
 name = "Temple 8 Research"
 twitter = "Temple8Research"
 kol_type = "stock_picker"
+
+# --- TSEM Case Study Seeds ---
+# Early $TSEM / Tower Semiconductor propagation chain (silicon photonics thesis)
+# Ordered roughly by earliest known mention
+
+[[seeds]]
+name = "Garrett Baldwin"
+twitter = "themoneyprinter"
+substack = "thefloridarepublic"
+kol_type = "stock_picker"
+
+[[seeds]]
+name = "Jason's Chips"
+twitter = "jasons_chips"
+substack = "jasonschips"
+kol_type = "stock_picker"
+
+[[seeds]]
+name = "Photon Capital"
+twitter = "PhotonCap"
+kol_type = "stock_picker"
+
+[[seeds]]
+name = "Serenity"
+twitter = "aleabitoreddit"
+kol_type = "stock_picker"
+
+[[seeds]]
+name = "Crux Capital"
+twitter = "crux_capital_"
+kol_type = "stock_picker"
