@@ -80,7 +80,7 @@ async def seed_and_run():
         for seed in settings.seeds:
             await discovery.seed_kol(
                 name=seed.name,
-                twitter_username=seed.twitter,
+                twitter_usernames=seed.twitter,
                 substack_slug=seed.substack,
                 kol_type=KOLType(seed.kol_type) if seed.kol_type else KOLType.UNCLASSIFIED,
             )

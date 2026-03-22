@@ -47,9 +47,12 @@ class DatabaseConfig(BaseModel):
 
 
 class SeedKOL(BaseModel):
-    """A seed KOL with optional multi-platform accounts."""
+    """A seed KOL with optional multi-platform accounts.
+
+    twitter can be a single handle or a list of handles (e.g. official + personal).
+    """
     name: str
-    twitter: str | None = None
+    twitter: str | list[str] | None = None
     substack: str | None = None
     kol_type: str = "unclassified"
 

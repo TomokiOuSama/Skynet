@@ -209,17 +209,20 @@ class DiscoveryEngine:
     async def seed_kol(
         self,
         name: str,
-        twitter_username: str | None = None,
+        twitter_usernames: str | list[str] | None = None,
         substack_slug: str | None = None,
         kol_type: KOLType = KOLType.UNCLASSIFIED,
     ) -> KOL:
         """Seed a KOL with one or more platform accounts.
 
+        twitter_usernames can be a single handle or a list (e.g. official + personal).
+        All Twitter accounts are linked to the same KOL identity node.
+
         Example::
 
             await discovery.seed_kol(
                 name="SemiAnalysis",
-                twitter_username="SemiAnalysis",
+                twitter_usernames=["SemiAnalysis_", "dylan522p"],
                 substack_slug="semianalysis",
                 kol_type=KOLType.STOCK_PICKER,
             )
@@ -228,14 +231,22 @@ class DiscoveryEngine:
         self.session.add(kol)
         await self.session.flush()
 
-        if twitter_username:
-            user_info = await self.twitter.get_user_by_username(twitter_username)
+        # Normalize to list
+        if twitter_usernames is None:
+            twitter_list = []
+        elif isinstance(twitter_usernames, str):
+            twitter_list = [twitter_usernames]
+        else:
+            twitter_list = twitter_usernames
+
+        for username in twitter_list:
+            user_info = await self.twitter.get_user_by_username(username)
             if user_info:
                 account = PlatformAccount(
                     kol_id=kol.id,
                     platform=Platform.TWITTER,
                     platform_user_id=user_info["id"],
-                    username=twitter_username,
+                    username=username,
                     display_name=user_info.get("name"),
                     followers_count=user_info.get("followers_count", 0),
                     is_discovery_source=True,
