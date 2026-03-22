@@ -8,7 +8,6 @@ from pydantic_settings import BaseSettings
 
 class TwitterConfig(BaseModel):
     bearer_token: str = ""
-    seed_accounts: list[str] = []
 
 
 class RedditConfig(BaseModel):
@@ -19,7 +18,7 @@ class RedditConfig(BaseModel):
 
 
 class SubstackConfig(BaseModel):
-    seed_newsletters: list[str] = []
+    pass  # No API key needed, RSS is public
 
 
 class StockConfig(BaseModel):
@@ -30,10 +29,11 @@ class StockConfig(BaseModel):
 
 
 class ScoringConfig(BaseModel):
-    originality_weight: float = 0.35
-    accuracy_weight: float = 0.40
+    originality_weight: float = 0.30
+    alpha_weight: float = 0.35
+    accuracy_weight: float = 0.10
     social_weight: float = 0.25
-    accuracy_window_days: list[int] = [7, 30, 90]
+    accuracy_window_days: list[int] = [7, 30, 60, 90, 180, 360]
     score_decay_half_life: int = 60
 
 
@@ -53,6 +53,15 @@ class DatabaseConfig(BaseModel):
     url: str = "sqlite+aiosqlite:///skynet.db"
 
 
+class SeedKOL(BaseModel):
+    """A seed KOL with optional multi-platform accounts."""
+    name: str
+    twitter: str | None = None
+    substack: str | None = None
+    reddit: str | None = None
+    kol_type: str = "unclassified"
+
+
 class Settings(BaseSettings):
     twitter: TwitterConfig = TwitterConfig()
     reddit: RedditConfig = RedditConfig()
@@ -62,6 +71,7 @@ class Settings(BaseSettings):
     discovery: DiscoveryConfig = DiscoveryConfig()
     llm: LLMConfig = LLMConfig()
     database: DatabaseConfig = DatabaseConfig()
+    seeds: list[SeedKOL] = []
 
     @classmethod
     def from_toml(cls, path: str | Path = "config/settings.toml") -> "Settings":

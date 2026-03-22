@@ -1,4 +1,11 @@
-"""KOL scoring models - dynamic weight assignment."""
+"""KOL scoring models - dynamic weight assignment.
+
+v2 improvements:
+- Separate alpha-based accuracy from absolute return accuracy
+- Median return tracking alongside mean
+- Volume tier awareness
+- Win rate tracking
+"""
 
 import datetime as dt
 
@@ -19,6 +26,7 @@ class KOLScore(TimestampMixin, Base):
     # Sub-scores (0.0 - 1.0)
     originality_score: Mapped[float] = mapped_column(Float, default=0.0)
     accuracy_score: Mapped[float] = mapped_column(Float, default=0.0)
+    alpha_score: Mapped[float] = mapped_column(Float, default=0.0)  # Alpha vs benchmark
     social_score: Mapped[float] = mapped_column(Float, default=0.0)
 
     # Weighted composite
@@ -26,8 +34,21 @@ class KOLScore(TimestampMixin, Base):
 
     # Stats backing the scores
     total_calls: Mapped[int] = mapped_column(Integer, default=0)
+    high_conviction_calls: Mapped[int] = mapped_column(Integer, default=0)
     accurate_calls: Mapped[int] = mapped_column(Integer, default=0)
     first_caller_count: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Median returns at key horizons
+    median_return_30d: Mapped[float | None] = mapped_column(Float, nullable=True)
+    median_return_60d: Mapped[float | None] = mapped_column(Float, nullable=True)
+    median_return_180d: Mapped[float | None] = mapped_column(Float, nullable=True)
+    median_alpha_30d: Mapped[float | None] = mapped_column(Float, nullable=True)
+    median_alpha_60d: Mapped[float | None] = mapped_column(Float, nullable=True)
+    median_alpha_180d: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    # Win rate (% of calls directionally correct)
+    win_rate_30d: Mapped[float | None] = mapped_column(Float, nullable=True)
+    win_rate_60d: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     kol: Mapped["KOL"] = relationship(back_populates="scores")  # noqa: F821
 
@@ -43,6 +64,7 @@ class ScoreSnapshot(Base):
 
     originality_score: Mapped[float] = mapped_column(Float)
     accuracy_score: Mapped[float] = mapped_column(Float)
+    alpha_score: Mapped[float] = mapped_column(Float, default=0.0)
     social_score: Mapped[float] = mapped_column(Float)
     composite_score: Mapped[float] = mapped_column(Float)
 

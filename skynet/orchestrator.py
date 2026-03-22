@@ -1,10 +1,10 @@
 """Main Orchestrator - coordinates all engines on a scheduled loop.
 
 Run cycle:
-1. Discovery: Expand the KOL network
-2. Ingestion: Fetch new content from all KOLs
-3. Stock Tracking: Update prices, evaluate call accuracy
-4. Scoring: Recompute all KOL scores
+1. Discovery: Expand KOL network via Twitter social graphs
+2. Ingestion: Fetch content from all platforms (Twitter tweets, Substack articles)
+3. Stock Tracking: Update prices + benchmark ETFs, evaluate call accuracy + alpha
+4. Scoring: Recompute all KOL scores (median alpha, win rate, originality, social)
 """
 
 import asyncio
@@ -15,8 +15,9 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from skynet.engines.discovery import DiscoveryEngine
 from skynet.engines.ingestion import IngestionEngine
 from skynet.engines.stock_tracker import StockTracker
-from skynet.models.kol import Platform
+from skynet.models.kol import KOLType
 from skynet.scoring.scorer import KOLScorer
+from skynet.scrapers.substack import SubstackScraper
 from skynet.scrapers.twitter import TwitterScraper
 from skynet.utils.config import get_settings
 from skynet.utils.db import get_session_factory, init_db
@@ -31,21 +32,22 @@ async def run_full_cycle():
 
     async with session_factory() as session:
         twitter = TwitterScraper()
+        substack = SubstackScraper()
 
-        # 1. Discovery
-        logger.info("=== Phase 1: Discovery ===")
+        # 1. Discovery (via Twitter social graphs only)
+        logger.info("=== Phase 1: Discovery (Twitter) ===")
         discovery = DiscoveryEngine(session, twitter)
         new_kols = await discovery.run_discovery_cycle()
         logger.info(f"Discovered {len(new_kols)} new KOLs")
 
-        # 2. Ingestion
-        logger.info("=== Phase 2: Ingestion ===")
-        ingestion = IngestionEngine(session, twitter)
+        # 2. Ingestion (from all platform accounts)
+        logger.info("=== Phase 2: Ingestion (Twitter + Substack) ===")
+        ingestion = IngestionEngine(session, twitter, substack)
         new_content = await ingestion.run_ingestion_cycle()
         logger.info(f"Ingested {new_content} new content items")
 
-        # 3. Stock Tracking
-        logger.info("=== Phase 3: Stock Tracking ===")
+        # 3. Stock Tracking (with benchmark ETFs)
+        logger.info("=== Phase 3: Stock Tracking + Alpha ===")
         tracker = StockTracker(session)
         tickers = await tracker.get_active_tickers()
         await tracker.update_price_cache(tickers)
@@ -53,11 +55,13 @@ async def run_full_cycle():
         await tracker.evaluate_calls()
         logger.info(f"Tracked {len(tickers)} active tickers")
 
-        # 4. Scoring
+        # 4. Scoring (median alpha + win rate + originality + social)
         logger.info("=== Phase 4: Scoring ===")
         scorer = KOLScorer(session)
         scores = await scorer.score_all()
         logger.info(f"Scored {len(scores)} KOLs")
+
+        await substack.close()
 
     logger.info("=== Full cycle complete ===")
 
@@ -72,10 +76,13 @@ async def seed_and_run():
         twitter = TwitterScraper()
         discovery = DiscoveryEngine(session, twitter)
 
-        # Seed initial accounts
-        if settings.twitter.seed_accounts:
-            await discovery.seed_initial_kols(
-                Platform.TWITTER, settings.twitter.seed_accounts
+        # Seed KOLs with multi-platform accounts
+        for seed in settings.seeds:
+            await discovery.seed_kol(
+                name=seed.name,
+                twitter_username=seed.twitter,
+                substack_slug=seed.substack,
+                kol_type=KOLType(seed.kol_type) if seed.kol_type else KOLType.UNCLASSIFIED,
             )
 
     await run_full_cycle()
@@ -86,7 +93,6 @@ def start_scheduler():
     settings = get_settings()
     scheduler = AsyncIOScheduler()
 
-    # Run full cycle on configured interval
     interval_hours = settings.discovery.discovery_interval_hours
     scheduler.add_job(run_full_cycle, "interval", hours=interval_hours)
 
@@ -102,13 +108,10 @@ async def main():
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
 
-    # Initial run
     await seed_and_run()
 
-    # Start scheduler for ongoing cycles
     scheduler = start_scheduler()
 
-    # Start API server
     import uvicorn
     from skynet.api.app import app
 

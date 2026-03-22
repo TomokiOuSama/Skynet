@@ -3,63 +3,69 @@
 
 [twitter]
 bearer_token = ""
-# Seed accounts to start discovery from
-seed_accounts = [
-    "semikidon",
-    "TechInsiderX",
-]
 
 [reddit]
 client_id = ""
 client_secret = ""
 user_agent = "skynet-kol-tracker/0.1"
-# Subreddits to monitor
-subreddits = [
-    "semiconductors",
-    "wallstreetbets",
-    "stocks",
-    "smallcapstocks",
-]
-
-[substack]
-# Seed newsletter URLs
-seed_newsletters = []
+subreddits = ["semiconductors", "wallstreetbets", "stocks", "smallcapstocks"]
 
 [stock]
-# Yahoo Finance is free, no key needed
-# For premium data, add API keys here
 alpha_vantage_key = ""
-# Sectors to focus on
 focus_sectors = ["semiconductors", "technology"]
-# Market cap filter (in millions USD)
 max_market_cap = 10000
 min_market_cap = 100
 
 [scoring]
-# Weight for originality (who posted first)
-originality_weight = 0.35
-# Weight for accuracy (stock performance after call)
-accuracy_weight = 0.40
-# Weight for social authority (network position)
+originality_weight = 0.30
+alpha_weight = 0.35
+accuracy_weight = 0.10
 social_weight = 0.25
-# Days to measure stock performance after a call
-accuracy_window_days = [7, 30, 90]
-# Score decay half-life in days
+accuracy_window_days = [7, 30, 60, 90, 180, 360]
 score_decay_half_life = 60
 
 [discovery]
-# How many hops from seed accounts to explore
 max_discovery_depth = 3
-# Minimum engagement to consider a new KOL
 min_engagement_threshold = 100
-# How often to run discovery (hours)
 discovery_interval_hours = 24
 
 [llm]
-# For content analysis (ticker extraction, sentiment)
 provider = "openai"
 model = "gpt-4o-mini"
 api_key = ""
 
 [database]
 url = "sqlite+aiosqlite:///skynet.db"
+
+# Seed KOLs — each can have multiple platform accounts
+# Twitter is used for discovery (social graph expansion)
+# Substack is used for deep content analysis (stock call extraction)
+
+[[seeds]]
+name = "SemiAnalysis"
+twitter = "SemiAnalysis"
+substack = "semianalysis"
+kol_type = "stock_picker"
+
+[[seeds]]
+name = "Fabricated Knowledge"
+twitter = "FassyFas"
+substack = "fabricatedknowledge"
+kol_type = "stock_picker"
+
+[[seeds]]
+name = "FundaAI"
+substack = "fundaai"
+kol_type = "stock_picker"
+
+[[seeds]]
+name = "Citrini Research"
+twitter = "CitriniResearch"
+substack = "citriniresearch"
+kol_type = "stock_picker"
+
+[[seeds]]
+name = "Altay Capital"
+twitter = "AltayCapital"
+substack = "altaycapital"
+kol_type = "stock_picker"

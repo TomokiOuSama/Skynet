@@ -1,7 +1,9 @@
 """Stock Performance Tracker - fetches price data and scores call accuracy.
 
-Uses yfinance for free stock price data. Tracks price performance
-at 7, 30, and 90 day windows after each KOL's stock call.
+v2 improvements:
+- Extended windows: 7d, 30d, 60d, 90d, 180d, 360d
+- Benchmark alpha: tracks sector ETF performance alongside stock
+- Caches ETF prices alongside stock prices
 """
 
 import datetime as dt
@@ -11,29 +13,43 @@ import yfinance as yf
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from skynet.models.stock import StockCall, StockPrice
+from skynet.models.stock import SECTOR_ETF_MAP, StockCall, StockPrice
 
 logger = logging.getLogger(__name__)
 
+# All time windows we track
+WINDOWS = [
+    ("price_after_7d", "return_7d", "benchmark_return_7d", "alpha_7d", 7),
+    ("price_after_30d", "return_30d", "benchmark_return_30d", "alpha_30d", 30),
+    ("price_after_60d", "return_60d", "benchmark_return_60d", "alpha_60d", 60),
+    ("price_after_90d", "return_90d", "benchmark_return_90d", "alpha_90d", 90),
+    ("price_after_180d", "return_180d", "benchmark_return_180d", "alpha_180d", 180),
+    ("price_after_360d", "return_360d", "benchmark_return_360d", "alpha_360d", 360),
+]
+
 
 class StockTracker:
-    """Tracks stock prices and evaluates KOL call accuracy."""
+    """Tracks stock prices and evaluates KOL call accuracy with benchmark alpha."""
 
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def update_price_cache(self, tickers: list[str], days: int = 120):
-        """Fetch and cache recent price data for given tickers."""
+    async def update_price_cache(self, tickers: list[str], days: int = 400):
+        """Fetch and cache recent price data for stocks AND their benchmark ETFs."""
+        # Collect all unique benchmark ETFs
+        benchmark_tickers = set(SECTOR_ETF_MAP.values())
+        all_tickers = set(tickers) | benchmark_tickers
+
         end = dt.date.today()
         start = end - dt.timedelta(days=days)
 
-        for ticker in tickers:
+        for ticker in all_tickers:
             try:
                 stock = yf.Ticker(ticker)
                 hist = stock.history(start=start.isoformat(), end=end.isoformat())
 
-                for date, row in hist.iterrows():
-                    trade_date = date.date()
+                for date_idx, row in hist.iterrows():
+                    trade_date = date_idx.date()
                     existing = await self.session.execute(
                         select(StockPrice).where(
                             StockPrice.ticker == ticker,
@@ -55,22 +71,14 @@ class StockTracker:
                     self.session.add(price)
 
                 await self.session.commit()
-                logger.info(f"Updated price cache for {ticker}")
             except Exception:
                 logger.exception(f"Failed to fetch prices for {ticker}")
 
     async def evaluate_calls(self):
-        """Evaluate all stock calls that have matured (enough time has passed)."""
+        """Evaluate all stock calls with both absolute returns and benchmark alpha."""
         now = dt.datetime.now(dt.timezone.utc)
 
-        # Find calls missing performance data
-        windows = [
-            ("price_after_7d", "return_7d", 7),
-            ("price_after_30d", "return_30d", 30),
-            ("price_after_90d", "return_90d", 90),
-        ]
-
-        for price_col, return_col, days in windows:
+        for price_col, return_col, bench_return_col, alpha_col, days in WINDOWS:
             cutoff = now - dt.timedelta(days=days)
 
             stmt = select(StockCall).where(
@@ -85,32 +93,54 @@ class StockTracker:
 
             for call in calls:
                 target_date = call.called_at.date() + dt.timedelta(days=days)
-                price = await self._get_closest_price(call.ticker, target_date)
 
-                if price and call.price_at_call:
-                    setattr(call, price_col, price)
-                    ret = (price - call.price_at_call) / call.price_at_call
-                    setattr(call, return_col, ret)
+                # Stock price at target date
+                stock_price = await self._get_closest_price(call.ticker, target_date)
+                if stock_price and call.price_at_call:
+                    setattr(call, price_col, stock_price)
+                    stock_return = (stock_price - call.price_at_call) / call.price_at_call
+                    setattr(call, return_col, stock_return)
+
+                    # Benchmark return over same period
+                    if call.benchmark_ticker and call.benchmark_price_at_call:
+                        bench_price = await self._get_closest_price(
+                            call.benchmark_ticker, target_date
+                        )
+                        if bench_price:
+                            bench_return = (
+                                (bench_price - call.benchmark_price_at_call)
+                                / call.benchmark_price_at_call
+                            )
+                            setattr(call, bench_return_col, bench_return)
+                            setattr(call, alpha_col, stock_return - bench_return)
 
         await self.session.commit()
         logger.info("Call evaluation complete")
 
     async def backfill_call_prices(self):
-        """Fill in price_at_call for calls that are missing it."""
+        """Fill in price_at_call and benchmark_price_at_call for new calls."""
         stmt = select(StockCall).where(StockCall.price_at_call.is_(None))
         result = await self.session.execute(stmt)
         calls = result.scalars().all()
 
         for call in calls:
+            # Stock price at call time
             price = await self._get_closest_price(call.ticker, call.called_at.date())
             if price:
                 call.price_at_call = price
 
+            # Benchmark price at call time
+            if call.benchmark_ticker:
+                bench_price = await self._get_closest_price(
+                    call.benchmark_ticker, call.called_at.date()
+                )
+                if bench_price:
+                    call.benchmark_price_at_call = bench_price
+
         await self.session.commit()
 
     async def _get_closest_price(self, ticker: str, target_date: dt.date) -> float | None:
-        """Get the closing price closest to a target date."""
-        # Look within a 5-day window (weekends/holidays)
+        """Get the closing price closest to a target date (within 5 day window)."""
         stmt = (
             select(StockPrice)
             .where(
@@ -118,19 +148,22 @@ class StockTracker:
                 StockPrice.date >= target_date - dt.timedelta(days=5),
                 StockPrice.date <= target_date + dt.timedelta(days=5),
             )
-            .order_by(
-                # Sort by distance from target date
-                (StockPrice.date - target_date).asc()
-            )
-            .limit(1)
+            .order_by(StockPrice.date.asc())
+            .limit(10)
         )
         result = await self.session.execute(stmt)
-        price_row = result.scalar_one_or_none()
-        return price_row.close if price_row else None
+        rows = result.scalars().all()
+
+        if not rows:
+            return None
+
+        # Find the closest date
+        closest = min(rows, key=lambda r: abs((r.date - target_date).days))
+        return closest.close
 
     async def get_active_tickers(self) -> list[str]:
-        """Get all tickers with recent calls."""
-        cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=90)
+        """Get all tickers with recent calls (within 360 days)."""
+        cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=360)
         stmt = (
             select(StockCall.ticker)
             .where(StockCall.called_at >= cutoff)
