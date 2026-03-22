@@ -7,9 +7,11 @@ Key improvements from Reddit post analysis:
 4. Win rate tracking
 5. Extended time horizons (up to 360d)
 6. Only scores stock_picker KOLs (macro/sector excluded from stock-picking rankings)
+7. Deep research bonus: HIGH conviction calls (Substack deep dives) get higher
+   originality weight than simple Twitter mentions
 
 Scoring dimensions:
-  Originality (35%): First-caller frequency with time decay
+  Originality (35%): First-caller frequency with time decay + conviction bonus
   Alpha (30%):       Median alpha vs sector benchmark across time windows
   Win Rate (25%):    Directionally correct calls
   Social (10%):      PageRank on the KOL social graph
@@ -260,9 +262,16 @@ class KOLScorer:
         return min(1.0, max(0.0, (win_rate - 0.5) * 4.0))
 
     async def _compute_originality(self, kol_id: int) -> float:
-        """Compute originality score based on first-caller frequency."""
+        """Compute originality score based on first-caller frequency.
+
+        HIGH conviction calls (deep research reports with Substack links)
+        receive a 2x multiplier on their originality contribution.  A KOL
+        who publishes a thorough deep-dive deserves more credit than one
+        who simply tweets a ticker name.
+        """
         now = dt.datetime.now(dt.timezone.utc)
         half_life = self.scoring.score_decay_half_life
+        deep_research_multiplier = self.scoring.deep_research_multiplier
 
         stmt = select(StockCall).where(
             StockCall.kol_id == kol_id,
@@ -281,14 +290,17 @@ class KOLScorer:
             days_ago = (now - call.called_at).total_seconds() / 86400
             decay = math.exp(-0.693 * days_ago / half_life)
 
+            # Deep research (HIGH conviction) gets a multiplier
+            conviction_mult = deep_research_multiplier if call.conviction == ConvictionLevel.HIGH else 1.0
+
             total_weight += decay
             if call.is_first_caller:
-                weighted_first += decay
+                weighted_first += decay * conviction_mult
             elif call.hours_after_first is not None and call.hours_after_first < 24:
                 early_bonus = max(0, 1 - call.hours_after_first / 24) * 0.5
-                weighted_first += decay * early_bonus
+                weighted_first += decay * early_bonus * conviction_mult
 
-        return weighted_first / total_weight if total_weight > 0 else 0.0
+        return min(1.0, weighted_first / total_weight) if total_weight > 0 else 0.0
 
     async def _compute_social_scores(self) -> dict[int, float]:
         """Compute social authority using PageRank on the KOL relation graph."""

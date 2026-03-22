@@ -17,6 +17,7 @@ accuracy_weight = 0.25
 social_weight = 0.10
 accuracy_window_days = [7, 30, 60, 90, 180, 360]
 score_decay_half_life = 60
+deep_research_multiplier = 2.0  # HIGH conviction (Substack deep dive) gets 2x originality credit vs simple tweet
 
 [discovery]
 max_discovery_depth = 3

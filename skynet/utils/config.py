@@ -28,6 +28,9 @@ class ScoringConfig(BaseModel):
     social_weight: float = 0.10
     accuracy_window_days: list[int] = [7, 30, 60, 90, 180, 360]
     score_decay_half_life: int = 60
+    # Deep research (HIGH conviction / Substack deep dive) gets this multiplier
+    # on originality credit vs a simple Twitter mention (LOW conviction)
+    deep_research_multiplier: float = 2.0
 
 
 class DiscoveryConfig(BaseModel):
