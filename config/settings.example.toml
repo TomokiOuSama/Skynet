@@ -2,7 +2,7 @@
 # Copy to settings.toml and fill in your API keys
 
 [twitter]
-bearer_token = ""
+api_key = ""  # TwitterAPI.io API key (get from https://twitterapi.io/dashboard)
 
 [stock]
 alpha_vantage_key = ""

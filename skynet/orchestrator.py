@@ -61,6 +61,7 @@ async def run_full_cycle():
         scores = await scorer.score_all()
         logger.info(f"Scored {len(scores)} KOLs")
 
+        await twitter.close()
         await substack.close()
 
     logger.info("=== Full cycle complete ===")

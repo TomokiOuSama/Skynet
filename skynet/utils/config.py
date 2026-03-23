@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings
 
 
 class TwitterConfig(BaseModel):
-    bearer_token: str = ""
+    api_key: str = ""  # TwitterAPI.io API key
 
 
 class SubstackConfig(BaseModel):

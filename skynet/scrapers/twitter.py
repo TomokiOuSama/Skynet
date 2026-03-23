@@ -1,132 +1,233 @@
-"""Twitter/X scraper using the v2 API via tweepy."""
+"""Twitter/X scraper using TwitterAPI.io.
+
+Drop-in replacement for the tweepy-based scraper. Uses username-based
+lookups since TwitterAPI.io endpoints are username-oriented.
+"""
 
 import logging
 from typing import Any
 
-import tweepy
-from tweepy.asynchronous import AsyncClient
+import httpx
 
 from skynet.utils.config import get_settings
 
 logger = logging.getLogger(__name__)
 
+BASE_URL = "https://api.twitterapi.io/twitter"
+
 
 class TwitterScraper:
-    """Async Twitter API client for fetching tweets and user data."""
+    """Async Twitter client backed by TwitterAPI.io."""
 
-    def __init__(self, bearer_token: str | None = None):
+    def __init__(self, api_key: str | None = None):
         settings = get_settings()
-        token = bearer_token or settings.twitter.bearer_token
-        self.client = AsyncClient(bearer_token=token, wait_on_rate_limit=True)
+        self.api_key = api_key or settings.twitter.api_key
+        self._client = httpx.AsyncClient(
+            base_url=BASE_URL,
+            headers={"X-API-Key": self.api_key},
+            timeout=30.0,
+        )
+
+    async def close(self):
+        await self._client.aclose()
+
+    # ------------------------------------------------------------------
+    # User lookup
+    # ------------------------------------------------------------------
 
     async def get_user_by_username(self, username: str) -> dict[str, Any] | None:
         """Look up a user by username."""
         try:
-            resp = await self.client.get_user(
-                username=username,
-                user_fields=["id", "name", "username", "description", "public_metrics"],
+            resp = await self._client.get(
+                "/user/by_username", params={"userName": username}
             )
-            if resp.data:
-                user = resp.data
-                return {
-                    "id": str(user.id),
-                    "name": user.name,
-                    "username": user.username,
-                    "description": user.description or "",
-                    "followers_count": user.public_metrics.get("followers_count", 0),
-                }
-        except tweepy.errors.TweepyException:
-            logger.exception(f"Failed to look up user @{username}")
+            resp.raise_for_status()
+            data = resp.json()
+            user = data.get("data") or data
+            if not user or not user.get("userName"):
+                return None
+            return _normalize_user(user)
+        except Exception:
+            logger.exception("Failed to look up user @%s", username)
         return None
 
-    async def get_user_info(self, user_id: str) -> dict[str, Any]:
-        """Get user info by ID."""
-        try:
-            resp = await self.client.get_user(
-                id=user_id,
-                user_fields=["id", "name", "username", "description", "public_metrics"],
-            )
-            if resp.data:
-                user = resp.data
-                return {
-                    "id": str(user.id),
-                    "name": user.name,
-                    "username": user.username,
-                    "description": user.description or "",
-                    "followers_count": user.public_metrics.get("followers_count", 0),
-                }
-        except tweepy.errors.TweepyException:
-            logger.exception(f"Failed to get user info for {user_id}")
-        return {}
+    async def get_user_info(self, username: str) -> dict[str, Any]:
+        """Get user info by username (was by ID, now username-based)."""
+        result = await self.get_user_by_username(username)
+        return result or {}
+
+    # ------------------------------------------------------------------
+    # Tweets
+    # ------------------------------------------------------------------
 
     async def get_user_tweets(
-        self, user_id: str, max_results: int = 50
+        self, username: str, max_results: int = 50
     ) -> list[dict[str, Any]]:
-        """Fetch recent tweets from a user."""
-        tweets = []
+        """Fetch recent tweets from a user by username."""
+        tweets: list[dict[str, Any]] = []
+        cursor: str | None = None
+
         try:
-            resp = await self.client.get_users_tweets(
-                id=user_id,
-                max_results=min(max_results, 100),
-                tweet_fields=[
-                    "id", "text", "created_at", "public_metrics",
-                    "referenced_tweets", "entities",
-                ],
-                expansions=["referenced_tweets.id", "referenced_tweets.id.author_id"],
-                user_fields=["id", "username"],
-            )
-            if resp.data:
-                includes_users = {
-                    str(u.id): u.username for u in (resp.includes.get("users", []) or [])
-                }
-                for tweet in resp.data:
-                    tweet_data = {
-                        "id": str(tweet.id),
-                        "text": tweet.text,
-                        "created_at": tweet.created_at.isoformat() if tweet.created_at else None,
-                        "likes": tweet.public_metrics.get("like_count", 0),
-                        "retweets": tweet.public_metrics.get("retweet_count", 0),
-                        "replies": tweet.public_metrics.get("reply_count", 0),
-                        "views": tweet.public_metrics.get("impression_count", 0),
-                        "type": "original",
-                        "referenced_users": includes_users,
-                    }
-                    if tweet.referenced_tweets:
-                        ref = tweet.referenced_tweets[0]
-                        tweet_data["type"] = ref.type  # retweeted, quoted, replied_to
-                        tweet_data["referenced_tweet_id"] = str(ref.id)
+            while len(tweets) < max_results:
+                params: dict[str, Any] = {"userName": username}
+                if cursor:
+                    params["cursor"] = cursor
 
-                    # Extract tickers from entities or text
-                    cashtags = []
-                    if tweet.entities and "cashtags" in tweet.entities:
-                        cashtags = [c["tag"] for c in tweet.entities["cashtags"]]
-                    tweet_data["cashtags"] = cashtags
+                resp = await self._client.get("/user/last_tweets", params=params)
+                resp.raise_for_status()
+                data = resp.json()
 
-                    tweets.append(tweet_data)
-        except tweepy.errors.TweepyException:
-            logger.exception(f"Failed to fetch tweets for user {user_id}")
+                batch = data.get("tweets") or []
+                if not batch:
+                    break
+
+                for raw in batch:
+                    tweets.append(_normalize_tweet(raw))
+                    if len(tweets) >= max_results:
+                        break
+
+                if not data.get("has_next_page") or not data.get("next_cursor"):
+                    break
+                cursor = data["next_cursor"]
+
+        except Exception:
+            logger.exception("Failed to fetch tweets for @%s", username)
+
         return tweets
 
-    async def get_recent_interactions(self, user_id: str) -> list[dict[str, Any]]:
+    async def search_tweets(
+        self, query: str, max_results: int = 100
+    ) -> list[dict[str, Any]]:
+        """Advanced search (supports $TICKER, from:user, min_faves, etc.)."""
+        tweets: list[dict[str, Any]] = []
+        cursor: str | None = None
+
+        try:
+            while len(tweets) < max_results:
+                params: dict[str, Any] = {"query": query}
+                if cursor:
+                    params["cursor"] = cursor
+
+                resp = await self._client.get(
+                    "/tweet/advanced_search", params=params
+                )
+                resp.raise_for_status()
+                data = resp.json()
+
+                batch = data.get("tweets") or []
+                if not batch:
+                    break
+
+                for raw in batch:
+                    tweets.append(_normalize_tweet(raw))
+                    if len(tweets) >= max_results:
+                        break
+
+                if not data.get("has_next_page") or not data.get("next_cursor"):
+                    break
+                cursor = data["next_cursor"]
+
+        except Exception:
+            logger.exception("Failed to search tweets: %s", query)
+
+        return tweets
+
+    # ------------------------------------------------------------------
+    # Social graph (for discovery)
+    # ------------------------------------------------------------------
+
+    async def get_recent_interactions(
+        self, username: str
+    ) -> list[dict[str, Any]]:
         """Get accounts this user recently retweeted, quoted, or mentioned.
 
-        Returns a list of interaction dicts with user_id, username, and type.
+        Returns interaction dicts with username and type.
         """
-        interactions = []
-        tweets = await self.get_user_tweets(user_id, max_results=100)
+        interactions: list[dict[str, Any]] = []
+        tweets = await self.get_user_tweets(username, max_results=100)
 
-        seen_users = set()
+        seen_users: set[str] = set()
         for tweet in tweets:
-            if tweet["type"] in ("retweeted", "quoted"):
-                ref_users = tweet.get("referenced_users", {})
-                for uid, uname in ref_users.items():
-                    if uid != user_id and uid not in seen_users:
-                        seen_users.add(uid)
-                        interactions.append({
-                            "user_id": uid,
-                            "username": uname,
-                            "type": tweet["type"].replace("retweeted", "retweet").replace(
-                                "quoted", "quote"
-                            ),
-                        })
+            tweet_type = tweet["type"]
+            if tweet_type not in ("retweeted", "quoted"):
+                continue
+
+            ref_username = tweet.get("referenced_username")
+            if not ref_username or ref_username == username:
+                continue
+            if ref_username in seen_users:
+                continue
+
+            seen_users.add(ref_username)
+            interactions.append({
+                "username": ref_username,
+                "type": tweet_type.replace("retweeted", "retweet").replace(
+                    "quoted", "quote"
+                ),
+            })
+
         return interactions
+
+
+# ======================================================================
+# Response normalization helpers
+# ======================================================================
+
+def _normalize_user(raw: dict) -> dict[str, Any]:
+    """Normalize TwitterAPI.io user object to our internal format."""
+    return {
+        "id": str(raw.get("id") or raw.get("userId") or raw.get("rest_id", "")),
+        "name": raw.get("name", ""),
+        "username": raw.get("userName") or raw.get("username", ""),
+        "description": raw.get("description") or raw.get("bio", ""),
+        "followers_count": raw.get("followers") or raw.get("followersCount", 0),
+    }
+
+
+def _normalize_tweet(raw: dict) -> dict[str, Any]:
+    """Normalize TwitterAPI.io tweet object to our internal format."""
+    # Determine tweet type from TwitterAPI.io fields
+    tweet_type = "original"
+    referenced_username = None
+
+    if raw.get("isRetweet"):
+        tweet_type = "retweeted"
+        rt_author = raw.get("retweetedTweet", {}).get("author", {})
+        referenced_username = rt_author.get("userName")
+    elif raw.get("isQuote") or raw.get("quoted_tweet"):
+        tweet_type = "quoted"
+        qt = raw.get("quoted_tweet") or raw.get("quotedTweet", {})
+        qt_author = qt.get("author", {})
+        referenced_username = qt_author.get("userName")
+    elif raw.get("isReply") or raw.get("inReplyToId"):
+        tweet_type = "replied_to"
+
+    # Extract cashtags from entities or text
+    cashtags: list[str] = []
+    entities = raw.get("entities", {})
+    if entities and "symbols" in entities:
+        cashtags = [s.get("text", "") for s in entities["symbols"] if s.get("text")]
+    elif entities and "cashtags" in entities:
+        cashtags = [c.get("tag", "") for c in entities["cashtags"] if c.get("tag")]
+
+    # Fall back to text-based extraction if no entity cashtags
+    if not cashtags:
+        import re
+        text = raw.get("text", "")
+        cashtags = re.findall(r"\$([A-Z]{1,5})\b", text)
+
+    author = raw.get("author", {})
+
+    return {
+        "id": str(raw.get("id") or raw.get("tweetId", "")),
+        "text": raw.get("text", ""),
+        "created_at": raw.get("createdAt") or raw.get("created_at"),
+        "likes": raw.get("likeCount", 0),
+        "retweets": raw.get("retweetCount", 0),
+        "replies": raw.get("replyCount", 0),
+        "views": raw.get("viewCount", 0),
+        "type": tweet_type,
+        "referenced_username": referenced_username,
+        "cashtags": cashtags,
+        "author_username": author.get("userName", ""),
+    }

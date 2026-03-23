@@ -166,7 +166,7 @@ class IngestionEngine:
 
     async def _ingest_twitter(self, account: PlatformAccount, kol: KOL) -> int:
         """Ingest tweets from a Twitter account."""
-        tweets = await self.twitter.get_user_tweets(account.platform_user_id)
+        tweets = await self.twitter.get_user_tweets(account.username)
         new_count = 0
 
         for tweet in tweets:

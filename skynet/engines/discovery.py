@@ -76,10 +76,9 @@ class DiscoveryEngine:
         """Discover new KOLs from a Twitter account's interactions."""
         discovered = []
 
-        interactions = await self.twitter.get_recent_interactions(account.platform_user_id)
+        interactions = await self.twitter.get_recent_interactions(account.username)
 
         for interaction in interactions:
-            target_user_id = interaction["user_id"]
             target_username = interaction["username"]
             relation_type = interaction["type"]
 
@@ -87,7 +86,7 @@ class DiscoveryEngine:
             existing_account = await self.session.execute(
                 select(PlatformAccount).where(
                     PlatformAccount.platform == Platform.TWITTER,
-                    PlatformAccount.platform_user_id == target_user_id,
+                    PlatformAccount.username == target_username,
                 )
             )
             existing = existing_account.scalar_one_or_none()
@@ -99,9 +98,12 @@ class DiscoveryEngine:
                 continue
 
             # Check if this person posts stock-related content
-            user_info = await self.twitter.get_user_info(target_user_id)
+            user_info = await self.twitter.get_user_by_username(target_username)
+            if not user_info:
+                logger.debug("Could not look up @%s, skipping", target_username)
+                continue
             recent_tweets = await self.twitter.get_user_tweets(
-                target_user_id, max_results=20
+                target_username, max_results=20
             )
 
             stock_tweet_count = sum(
@@ -133,7 +135,7 @@ class DiscoveryEngine:
             twitter_account = PlatformAccount(
                 kol_id=new_kol.id,
                 platform=Platform.TWITTER,
-                platform_user_id=target_user_id,
+                platform_user_id=user_info.get("id", target_username),
                 username=target_username,
                 display_name=user_info.get("name"),
                 followers_count=followers,
