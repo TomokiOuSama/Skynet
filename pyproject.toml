@@ -27,6 +27,9 @@ dev = [
     "ruff>=0.2",
 ]
 
+[tool.setuptools.packages.find]
+include = ["skynet*"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
